@@ -1,0 +1,177 @@
+---
+title: "Analysis of the impact on health and economy for different types of events"
+date: "2/20/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Synopsis
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+  
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+  
+The data and documentation are available at the following links:
+  
+- [Storm Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+- [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+- [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+  
+The target is to answer the following two questions:  
+1. Across the United States, which types of events are most harmful with respect to population health?  
+2. Across the United States, which types of events have the greatest economic consequences?
+
+## Data Processing
+
+First, all the libraries needed for the analysis are loaded, and some constants related to the source data file are set.
+
+```{r dataproc_1, results = "hide"}
+## Dependencies
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+
+# Set constants
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+zippedFileName <- "repdata_data_StormData.csv.bz2"
+```
+
+Then the file is downloaded, if necessary, and the data is read.
+
+```{r dataproc_2, results = "hide", cache = TRUE}
+# Downloading the raw data file, if necessary
+if (!file.exists(zippedFileName)) {
+  print("Downloading the file...")
+  download.file(fileUrl, destfile = zippedFileName, method = "curl")
+}
+
+# Reading the data
+con <- bzfile(zippedFileName, open = "r")
+stormData <- read.csv(con)
+close(con)
+```
+
+The column names are displayed to get an overview of what is inside the dataset.
+
+```{r dataproc_3}
+colnames(stormData)
+```
+
+### Question 1: which types of events are most harmful with respect to population health?
+
+To answer the first question, the total number of fatalities (column **FATALITIES**) and injuries (column **INJURIES**) are calculated with respect to the event type (column **EVTYPE**), and both totals are arranged in decreasing order in a Pareto fashion. Furthermore, only the first top 9 items are considered, and the rest is consolidated as **OTHERS**.
+
+```{r dataproc_4}
+# Fatalities
+fatalities <- stormData %>%
+  group_by(EVTYPE) %>%
+  summarize(total_FATALITIES = sum(FATALITIES, na.rm = TRUE)) %>%
+  arrange(desc(total_FATALITIES)) %>%
+  mutate(EVTYPE = factor(EVTYPE, levels = c(as.character(EVTYPE), "OTHERS")))
+fatalities <- rbind(fatalities[1:9,], c("OTHERS", sum(fatalities$total_FATALITIES[-1:-9]))) %>%
+  mutate(total_FATALITIES = as.numeric(total_FATALITIES))
+
+# Injuries
+injuries <- stormData %>%
+  group_by(EVTYPE) %>%
+  summarize(total_INJURIES = sum(INJURIES, na.rm = TRUE)) %>%
+  arrange(desc(total_INJURIES)) %>%
+  mutate(EVTYPE = factor(EVTYPE, levels = c(as.character(EVTYPE), "OTHERS")))
+injuries <- rbind(injuries[1:9,], c("OTHERS", sum(injuries$total_INJURIES[-1:-9]))) %>%
+  mutate(total_INJURIES = as.numeric(total_INJURIES))
+```
+
+### Question 2: which types of events have the greatest economic consequences?
+
+To answer the second question, the total property damage (based on columns **PROPDMG** and **PROPDMGEXP**) and crop damage (based on columns **CROPDMG** and **CROPDMGEXP**) are calculated with respect to the event type (column **EVTYPE**). The total damage is calculated as the sum of the two, and it is arranged in decreasing order in a Pareto fashion. Furthermore, only the first top 9 items are considered, and the rest is consolidated as **OTHERS**.
+
+```{r dataproc_6}
+# Damage
+damage <- stormData %>%
+  mutate(PROPDMGFACT = ifelse(PROPDMGEXP == "B", 10^9,
+                              ifelse(PROPDMGEXP %in% c("m", "M"), 10^6,
+                                     ifelse(PROPDMGEXP %in% c("k", "K"), 10^3,
+                                            ifelse(PROPDMGEXP == "h", 10^2, 1))))) %>%
+  mutate(CROPDMGFACT = ifelse(CROPDMGEXP == "B", 10^9,
+                            ifelse(CROPDMGEXP %in% c("m", "M"), 10^6,
+                                   ifelse(CROPDMGEXP %in% c("k", "K"), 10^3,
+                                          ifelse(CROPDMGEXP == "h", 10^2, 1))))) %>%
+  mutate(PROPDAMAGE = PROPDMG * PROPDMGFACT, CROPDAMAGE = CROPDMGFACT * CROPDMG) %>%
+  group_by(EVTYPE) %>%
+  summarize(total_PROPDAMAGE = sum(PROPDAMAGE, na.rm = TRUE),
+            total_CROPDAMAGE = sum(CROPDAMAGE, na.rm = TRUE)) %>%
+  mutate(total_DAMAGE = total_PROPDAMAGE + total_CROPDAMAGE) %>%
+  arrange(desc(total_DAMAGE)) %>%
+  mutate(EVTYPE = factor(EVTYPE, levels = c(as.character(EVTYPE), "OTHERS")))
+damage <- rbind(damage[1:9,], c("OTHERS", sum(damage$total_PROPDAMAGE[-1:-9]),
+                                sum(damage$total_CROPDAMAGE[-1:-9]), sum(damage$total_DAMAGE[-1:-9]))) %>%
+  mutate(total_PROPDAMAGE = as.numeric(total_PROPDAMAGE), total_CROPDAMAGE = as.numeric(total_CROPDAMAGE),
+         total_DAMAGE = as.numeric(total_DAMAGE))
+```
+
+***Note:*** the columns **PROPDMGEXP** and **CROPDMGEXP** contain various symbols.
+
+```{r dataproc_5}
+table(stormData$PROPDMGEXP)
+table(stormData$CROPDMGEXP)
+```
+
+They are interpreted as value multipliers using the following rules:  
+- **"B"** stands for **10^9**  
+- **"m"** and **"M"** stand for **10^6**  
+- **"k"** and **"K"** stand for **10^3**  
+- **"h"** stands for **10^2**  
+- **Everything else** stands for **1**
+
+## Results
+
+Based on the previous processing is now possible to answer the two questions.
+
+### Question 1: which types of events are most harmful with respect to population health?
+
+It's possible to see from the tables and the charts that **TORNADO** is the event type causing the highest number of both fatalities and injuries. Moreover, also **EXCESSIVE HEAT** and **LIGHTNING** appear in the top-5 list of both fatalities and injuries.
+
+```{r results_1}
+fatalities
+ggplot(data = fatalities, aes(x = "", y = total_FATALITIES, fill = EVTYPE)) +
+  geom_bar(stat="identity") + coord_polar("y", start = 0, direction = -1) +
+  theme_void() + theme(plot.title = element_text(hjust = 0.5), plot.caption=element_text(hjust = 0.5, face = "italic")) +
+  scale_fill_manual(name = "Event type", values = c(rev(brewer.pal(9, "PuBu")), "#000000")) +
+  labs(title = "Fatalities by event type", caption = "From the chart, it is possible to read directly the top 9 events
+which caused the highest number of fatalities during the observation period.
+All the other events are summarized in the bucket 'OTHERS'")
+
+injuries
+ggplot(data = injuries, aes(x = "", y = total_INJURIES, fill = EVTYPE)) +
+  geom_bar(stat="identity") + coord_polar("y", start = 0, direction = -1) +
+  theme_void() + theme(plot.title = element_text(hjust = 0.5), plot.caption=element_text(hjust = 0.5, face = "italic")) +
+  scale_fill_manual(name = "Event type", values = c(rev(brewer.pal(9, "PuBu")), "#000000")) +
+  labs(title = "Injuries by event type", caption = "From the chart, it is possible to read directly the top 9 events
+which caused the highest number of injuries during the observation period.
+All the other events are summarized in the bucket 'OTHERS'")
+```
+
+### Question 2: which types of events have the greatest economic consequences?
+
+By looking at the total damage, the top-5 event types in term of impact are **FLOOD**, **HURRICANE/TYPHOON**, **TORNADO**, **STORM SURGE**, and **HAIL**.
+
+```{r results_2}
+damage
+damage <- damage[, c("EVTYPE", "total_PROPDAMAGE", "total_CROPDAMAGE")] %>%
+  gather(key = measure, value = total, -EVTYPE)
+ggplot(data = damage, aes(x = EVTYPE, y = total/1e9, fill = measure)) + geom_bar(stat="identity") +
+  theme(plot.title = element_text(hjust = 0.5), plot.caption=element_text(hjust = 0.5, face = "italic"),
+        axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Damage by event type", caption = "From the chart, it is possible to read directly the top 9 events
+which caused the greatest damage during the observation period,
+further split by type of damage (property damage and crop damage).
+All the other events are summarized in the bucket 'OTHERS'") +
+  xlab("Event type") + ylab("Total damage (billion dollars)") +
+  scale_fill_manual(name = "Type of damage", labels = c("Crop damage", "Property damage"),
+                    values = brewer.pal(9, "PuBu")[c(4,9)])
+```
+
