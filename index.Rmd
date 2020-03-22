@@ -1,7 +1,10 @@
 ---
 title: "Analysis of the impact on health and economy for different types of events"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
 date: "2/20/2020"
-output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -108,8 +111,10 @@ damage <- stormData %>%
   arrange(desc(total_DAMAGE)) %>%
   mutate(EVTYPE = factor(EVTYPE, levels = c(as.character(EVTYPE), "OTHERS")))
 damage <- rbind(damage[1:9,], c("OTHERS", sum(damage$total_PROPDAMAGE[-1:-9]),
-                                sum(damage$total_CROPDAMAGE[-1:-9]), sum(damage$total_DAMAGE[-1:-9]))) %>%
-  mutate(total_PROPDAMAGE = as.numeric(total_PROPDAMAGE), total_CROPDAMAGE = as.numeric(total_CROPDAMAGE),
+                                sum(damage$total_CROPDAMAGE[-1:-9]),
+                                sum(damage$total_DAMAGE[-1:-9]))) %>%
+  mutate(total_PROPDAMAGE = as.numeric(total_PROPDAMAGE),
+         total_CROPDAMAGE = as.numeric(total_CROPDAMAGE),
          total_DAMAGE = as.numeric(total_DAMAGE))
 ```
 
@@ -139,18 +144,22 @@ It's possible to see from the tables and the charts that **TORNADO** is the even
 fatalities
 ggplot(data = fatalities, aes(x = "", y = total_FATALITIES, fill = EVTYPE)) +
   geom_bar(stat="identity") + coord_polar("y", start = 0, direction = -1) +
-  theme_void() + theme(plot.title = element_text(hjust = 0.5), plot.caption=element_text(hjust = 0.5, face = "italic")) +
+  theme_void() + theme(plot.title = element_text(hjust = 0.5),
+                       plot.caption=element_text(hjust = 0.5, face = "italic")) +
   scale_fill_manual(name = "Event type", values = c(rev(brewer.pal(9, "PuBu")), "#000000")) +
-  labs(title = "Fatalities by event type", caption = "From the chart, it is possible to read directly the top 9 events
+  labs(title = "Fatalities by event type",
+  caption = "From the chart, it is possible to read directly the top 9 events
 which caused the highest number of fatalities during the observation period.
 All the other events are summarized in the bucket 'OTHERS'")
 
 injuries
 ggplot(data = injuries, aes(x = "", y = total_INJURIES, fill = EVTYPE)) +
   geom_bar(stat="identity") + coord_polar("y", start = 0, direction = -1) +
-  theme_void() + theme(plot.title = element_text(hjust = 0.5), plot.caption=element_text(hjust = 0.5, face = "italic")) +
+  theme_void() + theme(plot.title = element_text(hjust = 0.5),
+                       plot.caption=element_text(hjust = 0.5, face = "italic")) +
   scale_fill_manual(name = "Event type", values = c(rev(brewer.pal(9, "PuBu")), "#000000")) +
-  labs(title = "Injuries by event type", caption = "From the chart, it is possible to read directly the top 9 events
+  labs(title = "Injuries by event type",
+  caption = "From the chart, it is possible to read directly the top 9 events
 which caused the highest number of injuries during the observation period.
 All the other events are summarized in the bucket 'OTHERS'")
 ```
@@ -164,9 +173,11 @@ damage
 damage <- damage[, c("EVTYPE", "total_PROPDAMAGE", "total_CROPDAMAGE")] %>%
   gather(key = measure, value = total, -EVTYPE)
 ggplot(data = damage, aes(x = EVTYPE, y = total/1e9, fill = measure)) + geom_bar(stat="identity") +
-  theme(plot.title = element_text(hjust = 0.5), plot.caption=element_text(hjust = 0.5, face = "italic"),
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption=element_text(hjust = 0.5, face = "italic"),
         axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "Damage by event type", caption = "From the chart, it is possible to read directly the top 9 events
+  labs(title = "Damage by event type",
+  caption = "From the chart, it is possible to read directly the top 9 events
 which caused the greatest damage during the observation period,
 further split by type of damage (property damage and crop damage).
 All the other events are summarized in the bucket 'OTHERS'") +
